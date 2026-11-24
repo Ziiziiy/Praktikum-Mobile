@@ -1,0 +1,135 @@
+
+import bcrypt from "npm:bcryptjs@2.4.3";
+import { corsHeaders, errorResponse, json } from "../_shared/cors.ts";
+import {
+  admin,
+  authenticate,
+  type AuthUser,
+  isResponse,
+  signToken,
+} from "../_shared/auth.ts";
+
+const BCRYPT_COST = 10;
+
+// Hash dummy dihitung sekali saat pertama dibutuhkan.
+let dummyHash: string | null = null;
+
+async function getDummyHash(): Promise<string> {
+  const hash =
+    dummyHash ??
+    await bcrypt.hash("dummy-password", BCRYPT_COST);
+
+  dummyHash = hash;
+  return hash;
+}
+
+async function readBody(
+  req: Request,
+): Promise<Record<string, unknown> | null> {
+  try {
+    const b = await req.json();
+    return b && typeof b === "object" ? b : null;
+  } catch {
+    return null;
+  }
+}
+
+async function session(
+  user: AuthUser,
+  status = 200,
+): Promise<Response> {
+  const { token, expiresAt } = await signToken(user);
+  return json({ token, expires_at: expiresAt, user }, status);
+}
+
+// POST /auth/login { username, password }
+async function login(req: Request): Promise<Response> {
+  const body = await readBody(req);
+
+  if (!body) {
+    return errorResponse("Body harus berupa JSON", 400);
+  }
+
+  const username = String(body.username ?? "")
+    .trim()
+    .toLowerCase();
+
+  const password = String(body.password ?? "");
+
+  if (!username || !password) {
+    return errorResponse("Username dan password wajib diisi", 422);
+  }
+
+  const { data, error } = await admin
+    .from("users")
+    .select("id, username, full_name, role, password_hash, is_active")
+    .eq("username", username)
+    .maybeSingle();
+
+  if (error) {
+    console.error("login error", error);
+    return errorResponse("Gagal login", 500);
+  }
+
+  const ok = await bcrypt.compare(
+    password,
+    data?.password_hash ?? (await getDummyHash()),
+  );
+
+  if (!data || !ok) {
+    return errorResponse(
+      "Username atau password salah",
+      401,
+      "BAD_CREDENTIALS",
+    );
+  }
+
+  if (!data.is_active) {
+    return errorResponse("Akun dinonaktifkan", 403, "INACTIVE");
+  }
+
+  return session({
+    id: data.id,
+    username: data.username,
+    full_name: data.full_name,
+    role: data.role,
+  });
+}
+
+// GET /auth/me (Authorization: Bearer <token>)
+async function me(req: Request): Promise<Response> {
+  const user = await authenticate(req);
+
+  if (isResponse(user)) {
+    return user;
+  }
+
+  return json({ user });
+}
+
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
+
+  const action = new URL(req.url)
+    .pathname
+    .split("/")
+    .filter(Boolean)
+    .pop();
+
+  try {
+    if (req.method === "POST" && action === "login") {
+      return await login(req);
+    }
+
+    if (req.method === "GET" && action === "me") {
+      return await me(req);
+    }
+
+    return errorResponse("Endpoint tidak ditemukan", 404);
+  } catch (e) {
+    console.error("auth fatal", e);
+    return errorResponse("Kesalahan server", 500);
+  }
+});
