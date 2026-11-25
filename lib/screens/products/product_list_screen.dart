@@ -1,10 +1,9 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 
+import '../../controllers/product_list_controller.dart';
 import '../../core/constants/app_colors.dart';
 import '../../models/product_model.dart';
-import '../../services/db_helper.dart';
 import '../../services/product_service.dart';
 import '../../services/sync_service.dart';
 import '../../widgets/empty_state.dart';
@@ -21,71 +20,24 @@ class ProductListScreen extends StatefulWidget {
 
 class _ProductListScreenState extends State<ProductListScreen> {
   final _search = TextEditingController();
-  Timer? _debounce;
-
-  String? _category;
-  List<ProductModel> _products = const [];
-  List<String> _categories = const [];
-  bool _loaded = false;
-  int _seq = 0; // mencegah hasil query lama menimpa yang baru
-
-  bool get _filtering => _search.text.trim().isNotEmpty || _category != null;
+  late final ProductListController _c;
 
   @override
   void initState() {
     super.initState();
-    ProductService.instance.changes.addListener(_load);
-    _load();
+    _c = Get.put(ProductListController());
   }
 
   @override
   void dispose() {
-    ProductService.instance.changes.removeListener(_load);
-    _debounce?.cancel();
     _search.dispose();
+    Get.delete<ProductListController>();
     super.dispose();
-  }
-
-  /// Membaca dari cache SQLite, jadi katalog tetap tampil saat offline.
-  Future<void> _load() async {
-    final seq = ++_seq;
-    final db = DbHelper.instance;
-
-    final categories = await db.getCategories();
-    if (!mounted || seq != _seq) return;
-
-    // Kategori yang dipilih sudah tidak ada (produknya dinonaktifkan).
-    if (_category != null && !categories.contains(_category)) {
-      _category = null;
-      return _load();
-    }
-
-    final products = await db.getProducts(
-      query: _search.text,
-      category: _category,
-    );
-    if (!mounted || seq != _seq) return;
-
-    setState(() {
-      _categories = categories;
-      _products = products;
-      _loaded = true;
-    });
-  }
-
-  void _onSearchChanged(String _) {
-    _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 250), _load);
-  }
-
-  void _setCategory(String? category) {
-    setState(() => _category = category);
-    _load();
   }
 
   Future<void> _refresh() async {
     final report = await SyncService.instance.syncAll();
-    await _load();
+    await _c.load();
     if (!mounted) return;
     if (report.error != null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -124,59 +76,104 @@ class _ProductListScreenState extends State<ProductListScreen> {
   }
 
   Widget _buildList() {
-    if (!_loaded) {
-      return const Center(
-        child: CircularProgressIndicator(color: AppColors.yellow),
-      );
-    }
+    return Obx(() {
+      if (!_c.loaded.value) {
+        return const Center(
+          child: CircularProgressIndicator(color: AppColors.yellow),
+        );
+      }
 
-    return RefreshIndicator(
-      color: AppColors.yellow,
-      backgroundColor: AppColors.surface,
-      onRefresh: _refresh,
-      child: _products.isEmpty
-          ? CustomScrollView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              slivers: [
-                SliverFillRemaining(
-                  hasScrollBody: false,
-                  child: EmptyState(
-                    icon: _filtering
-                        ? Icons.search_off_rounded
-                        : Icons.inventory_2_outlined,
-                    title: _filtering
-                        ? 'Produk tidak ditemukan'
-                        : 'Belum ada produk',
-                    message: _filtering
-                        ? 'Coba kata kunci atau kategori lain.'
-                        : 'Tarik ke bawah untuk memuat ulang.',
-                  ),
-                ),
-              ],
-            )
-          : ListView.builder(
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.fromLTRB(16, 4, 16, 96),
-              itemCount: _products.length,
-              itemBuilder: (context, i) {
-                final p = _products[i];
-                return ProductCard(
-                  product: p,
-                  onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => ProductDetailScreen(productId: p.id),
+      final items = _c.visible;
+      final filtering = _c.filtering;
+
+      return RefreshIndicator(
+        color: AppColors.yellow,
+        backgroundColor: AppColors.surface,
+        onRefresh: _refresh,
+        child: items.isEmpty
+            ? CustomScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                slivers: [
+                  SliverFillRemaining(
+                    hasScrollBody: false,
+                    child: EmptyState(
+                      icon: filtering
+                          ? Icons.search_off_rounded
+                          : Icons.inventory_2_outlined,
+                      title: filtering
+                          ? 'Produk tidak ditemukan'
+                          : 'Belum ada produk',
+                      message: filtering
+                          ? 'Coba kata kunci, kategori, atau filter lain.'
+                          : 'Tarik ke bawah untuk memuat ulang.',
                     ),
                   ),
-                );
-              },
-            ),
+                ],
+              )
+            : ListView.builder(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 96),
+                itemCount: items.length,
+                itemBuilder: (context, i) {
+                  final p = items[i];
+                  return ProductCard(
+                    product: p,
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => ProductDetailScreen(productId: p.id),
+                      ),
+                    ),
+                  );
+                },
+              ),
+      );
+    });
+  }
+
+  /// Chip kondisi stok: Semua / Menipis / Habis / Aman, lengkap dengan jumlahnya.
+  Widget _stockChips() {
+    return SizedBox(
+      height: 44,
+      child: Obx(
+        () => ListView(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          children: [
+            for (final f in StockFilter.values)
+              _chip(
+                '${f.label} (${_c.countOf(f)})',
+                _c.stockFilter.value == f,
+                () => _c.setStockFilter(f),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _sortMenu() {
+    return PopupMenuButton<ProductSort>(
+      tooltip: 'Urutkan',
+      icon: const Icon(Icons.sort_rounded),
+      onSelected: _c.setSort,
+      itemBuilder: (_) => [
+        for (final s in ProductSort.values)
+          CheckedPopupMenuItem<ProductSort>(
+            value: s,
+            checked: _c.sortBy.value == s,
+            child: Text(s.label),
+          ),
+      ],
     );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Produk & Stok')),
+      appBar: AppBar(
+        title: const Text('Produk & Stok'),
+        actions: [_sortMenu()],
+      ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _add,
         backgroundColor: AppColors.yellow,
@@ -190,7 +187,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
             child: TextField(
               controller: _search,
-              onChanged: _onSearchChanged,
+              onChanged: _c.onSearchChanged,
               textInputAction: TextInputAction.search,
               decoration: InputDecoration(
                 hintText: 'Cari nama atau SKU',
@@ -203,26 +200,53 @@ class _ProductListScreenState extends State<ProductListScreen> {
                           icon: const Icon(Icons.close_rounded),
                           onPressed: () {
                             _search.clear();
-                            _load();
+                            _c.clearSearch();
                           },
                         ),
                 ),
               ),
             ),
           ),
+          // Baris 1: kondisi stok.
+          _stockChips(),
+          // Baris 2: kategori.
           SizedBox(
             height: 44,
-            child: ListView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              children: [
-                _chip('Semua', _category == null, () => _setCategory(null)),
-                for (final c in _categories)
-                  _chip(c, _category == c, () => _setCategory(c)),
-              ],
+            child: Obx(
+              () => ListView(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                children: [
+                  _chip(
+                    'Semua kategori',
+                    _c.category.value == null,
+                    () => _c.setCategory(null),
+                  ),
+                  for (final cat in _c.categories)
+                    _chip(
+                      cat,
+                      _c.category.value == cat,
+                      () => _c.setCategory(cat),
+                    ),
+                ],
+              ),
             ),
           ),
-          const SizedBox(height: 4),
+          Obx(
+            () => Padding(
+              padding: const EdgeInsets.fromLTRB(16, 2, 16, 6),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'Menampilkan ${_c.visible.length} dari ${_c.products.length} produk',
+                  style: const TextStyle(
+                    color: AppColors.white,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+            ),
+          ),
           Expanded(child: _buildList()),
         ],
       ),

@@ -332,6 +332,12 @@
       "languageVersion": "3.5"
     },
     {
+      "name": "get",
+      "rootUri": "file:///C:/Users/Acer/AppData/Local/Pub/Cache/hosted/pub.dev/get-4.7.3",
+      "packageUri": "lib/",
+      "languageVersion": "2.15"
+    },
+    {
       "name": "gotrue",
       "rootUri": "file:///C:/Users/Acer/AppData/Local/Pub/Cache/hosted/pub.dev/gotrue-2.27.3",
       "packageUri": "lib/",
