@@ -6,6 +6,7 @@ import '../../services/profile_photo_service.dart';
 import '../../widgets/biometric_setting_tile.dart';
 import '../../widgets/logout_dialog.dart';
 import '../../widgets/user_avatar.dart';
+import '../settings/notification_settings_screen.dart';
 import '../settings/settings_screen.dart';
 
 enum _PhotoAction { gallery, camera, remove }
@@ -177,6 +178,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           const SizedBox(height: 28),
           const BiometricSettingTile(),
+          const SizedBox(height: 12),
+          Card(
+            child: ListTile(
+              leading: const Icon(
+                Icons.notifications_active_rounded,
+                color: AppColors.yellow,
+              ),
+              title: const Text('Pengaturan notifikasi'),
+              subtitle: const Text(
+                'Jam pengingat stok harian dan riwayat notifikasi.',
+                style: TextStyle(color: AppColors.textSecondary),
+              ),
+              trailing: const Icon(Icons.chevron_right_rounded),
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => const NotificationSettingsScreen(),
+                ),
+              ),
+            ),
+          ),
           const SizedBox(height: 24),
           OutlinedButton.icon(
             onPressed: () => confirmLogout(context),

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'auth_service.dart';
 import 'db_helper.dart';
+import 'notification_prefs_service.dart';
 import 'notification_service.dart';
 import 'product_service.dart';
 
@@ -24,6 +25,9 @@ class AlertService {
 
     await NotificationService.instance.init();
     await NotificationService.instance.requestPermission();
+
+    // Pasang ulang pengingat harian sesuai pengaturan yang tersimpan di Hive.
+    await NotificationPrefsService.instance.restore();
 
     // Berubah setiap kali sinkronisasi produk, penjualan dicatat, atau
     // produk disimpan; jadi pengecekan stok selalu mengikuti data terbaru.

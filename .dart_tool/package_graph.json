@@ -13,8 +13,11 @@
         "flutter_local_notifications",
         "flutter_map",
         "flutter_secure_storage",
+        "flutter_timezone",
         "geolocator",
         "get",
+        "hive",
+        "hive_flutter",
         "http",
         "image_picker",
         "intl",
@@ -25,7 +28,8 @@
         "sensors_plus",
         "shared_preferences",
         "sqflite",
-        "supabase_flutter"
+        "supabase_flutter",
+        "timezone"
       ],
       "devDependencies": [
         "flutter_launcher_icons",
@@ -69,14 +73,6 @@
         "stream_channel",
         "test_api",
         "vector_math"
-      ]
-    },
-    {
-      "name": "get",
-      "version": "4.7.3",
-      "dependencies": [
-        "flutter",
-        "web"
       ]
     },
     {
@@ -253,6 +249,48 @@
       ]
     },
     {
+      "name": "flutter_timezone",
+      "version": "4.1.1",
+      "dependencies": [
+        "flutter",
+        "flutter_web_plugins"
+      ]
+    },
+    {
+      "name": "timezone",
+      "version": "0.11.2",
+      "dependencies": [
+        "http",
+        "path"
+      ]
+    },
+    {
+      "name": "hive_flutter",
+      "version": "1.1.0",
+      "dependencies": [
+        "flutter",
+        "hive",
+        "path",
+        "path_provider"
+      ]
+    },
+    {
+      "name": "hive",
+      "version": "2.2.3",
+      "dependencies": [
+        "crypto",
+        "meta"
+      ]
+    },
+    {
+      "name": "get",
+      "version": "4.7.3",
+      "dependencies": [
+        "flutter",
+        "web"
+      ]
+    },
+    {
       "name": "http",
       "version": "1.6.0",
       "dependencies": [
@@ -411,11 +449,6 @@
       ]
     },
     {
-      "name": "web",
-      "version": "1.1.1",
-      "dependencies": []
-    },
-    {
       "name": "uuid",
       "version": "4.6.0",
       "dependencies": [
@@ -471,14 +504,6 @@
       ]
     },
     {
-      "name": "timezone",
-      "version": "0.11.2",
-      "dependencies": [
-        "http",
-        "path"
-      ]
-    },
-    {
       "name": "flutter_local_notifications_platform_interface",
       "version": "12.2.0",
       "dependencies": [
@@ -520,6 +545,11 @@
         "path",
         "xdg_directories"
       ]
+    },
+    {
+      "name": "web",
+      "version": "1.1.1",
+      "dependencies": []
     },
     {
       "name": "logging",
